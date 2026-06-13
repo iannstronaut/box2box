@@ -7,7 +7,7 @@ const DEFAULT_PALETTE = [
   "#f4b400",
   "#0fa336",
   "#e85aad",
-  "#9b59b6",
+  "#14b8a6",
   "#1abc9c",
   "#e67e22",
   "#ecf0f1",

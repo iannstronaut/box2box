@@ -11,6 +11,10 @@ interface GlassCardProps {
   as?: keyof React.JSX.IntrinsicElements;
 }
 
+/**
+ * Elevated, rounded surface. Radius + shadow come from the glass/* classes
+ * defined in index.css so cards feel soft and modern by default.
+ */
 export function GlassCard({
   children,
   className,
@@ -26,13 +30,10 @@ export function GlassCard({
       : tile
         ? "glass-tile"
         : "glass";
-  return (
-    <As className={clsx(variant, "rounded-none", className)}>{children}</As>
-  );
+  return <As className={clsx(variant, className)}>{children}</As>;
 }
 
-interface BtnProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface BtnProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: "md" | "sm";
   iconOnly?: boolean;
@@ -59,7 +60,7 @@ export function Button({
     return (
       <button
         type="button"
-        className={clsx("btn-icon", className)}
+        className={clsx(size === "sm" ? "btn-icon-sm" : "btn-icon", className)}
         {...rest}
       >
         {children}
@@ -70,5 +71,21 @@ export function Button({
     <button type="button" className={clsx(base, sizeCls, className)} {...rest}>
       {children}
     </button>
+  );
+}
+
+/** A small uppercase eyebrow label used above section titles. */
+export function Eyebrow({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span className={clsx("type-eyebrow inline-flex items-center gap-2", className)}>
+      <span className="w-4 h-px bg-accent inline-block" />
+      {children}
+    </span>
   );
 }

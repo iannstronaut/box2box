@@ -11,6 +11,7 @@ import { UNCLASS_ID, isUnclass } from "../../types";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { uid } from "../../utils/id";
 import { IconPlus } from "../common/Icons";
+import { useLocale } from "../../context/LocaleContext";
 
 type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
@@ -38,6 +39,7 @@ const MIN_BOX = 4;
 
 export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
   const ws = useWorkspace();
+  const { t } = useLocale();
   const containerRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<ViewTransform>({ zoom: 1, panX: 0, panY: 0 });
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
@@ -475,7 +477,7 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
           <img
             src={image.url}
             alt={image.name}
-            className="block pointer-events-none"
+            className="block pointer-events-none canvas-image"
             style={{ width: image.width, height: image.height }}
             draggable={false}
           />
@@ -534,27 +536,81 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
                     </text>
                   </g>
                   {sel && (
-                    <ResizeHandlesG
-                      box={b}
-                      zoom={view.zoom}
-                      color={color}
-                    />
+                    <>
+                      <ResizeHandlesG
+                        box={b}
+                        zoom={view.zoom}
+                        color={color}
+                      />
+                      <text
+                        x={b.x + b.w / 2}
+                        y={b.y + b.h + 15 / view.zoom}
+                        textAnchor="middle"
+                        fill={color}
+                        fontSize={11 / view.zoom}
+                        fontWeight={600}
+                        fontFamily="Inter, sans-serif"
+                        stroke="rgba(0,0,0,0.55)"
+                        strokeWidth={3 / view.zoom}
+                        paintOrder="stroke"
+                      >
+                        {`${Math.round(b.w)} × ${Math.round(b.h)} px`}
+                      </text>
+                    </>
                   )}
                 </g>
               );
             })}
-            {drawing && (
-              <rect
-                x={Math.min(drawing.startWorld.x, drawing.currentWorld.x)}
-                y={Math.min(drawing.startWorld.y, drawing.currentWorld.y)}
-                width={Math.abs(drawing.currentWorld.x - drawing.startWorld.x)}
-                height={Math.abs(drawing.currentWorld.y - drawing.startWorld.y)}
-                fill="rgba(28,105,212,0.15)"
-                stroke="#1c69d4"
-                strokeWidth={1.5 / view.zoom}
-                strokeDasharray={`${4 / view.zoom} ${4 / view.zoom}`}
-              />
-            )}
+            {drawing &&
+              (() => {
+                const dx0 = Math.min(
+                  drawing.startWorld.x,
+                  drawing.currentWorld.x,
+                );
+                const dy0 = Math.min(
+                  drawing.startWorld.y,
+                  drawing.currentWorld.y,
+                );
+                const dw = Math.abs(
+                  drawing.currentWorld.x - drawing.startWorld.x,
+                );
+                const dh = Math.abs(
+                  drawing.currentWorld.y - drawing.startWorld.y,
+                );
+                const label = `${Math.round(dw)} × ${Math.round(dh)} px`;
+                return (
+                  <>
+                    <rect
+                      x={dx0}
+                      y={dy0}
+                      width={dw}
+                      height={dh}
+                      fill="rgba(47,107,246,0.16)"
+                      stroke="var(--accent)"
+                      strokeWidth={1.5 / view.zoom}
+                      strokeDasharray={`${4 / view.zoom} ${4 / view.zoom}`}
+                    />
+                    <rect
+                      x={dx0}
+                      y={dy0 - 19 / view.zoom}
+                      width={(label.length * 6.5 + 12) / view.zoom}
+                      height={17 / view.zoom}
+                      rx={4 / view.zoom}
+                      fill="var(--accent)"
+                    />
+                    <text
+                      x={dx0 + 6 / view.zoom}
+                      y={dy0 - 6.5 / view.zoom}
+                      fill="#fff"
+                      fontSize={11 / view.zoom}
+                      fontWeight={600}
+                      fontFamily="Inter, sans-serif"
+                    >
+                      {label}
+                    </text>
+                  </>
+                );
+              })()}
           </g>
         </svg>
 
@@ -565,23 +621,23 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
           return (
             <div
               className="absolute top-2 left-2 glass-soft px-2.5 py-1 flex items-center gap-1.5 pointer-events-none"
-              title={isUn ? "Drawing as 'unclass' — change class in the right sidebar" : "Active class"}
+              title={isUn ? t("canvas.drawingUnclass") : t("canvas.activeClass")}
             >
               <span
                 className="w-2 h-2"
                 style={{ background: activeCls?.color ?? "#888" }}
               />
               <span className="type-label text-on-dark">
-                {activeCls?.name ?? "unclass"}
+                {activeCls?.name ?? t("canvas.unclass")}
               </span>
             </div>
           );
         })()}
 
         {ws.mode === "classification" && (
-          <div className="absolute top-2 left-2 glass-soft px-2.5 py-1.5 text-caption text-on-dark pointer-events-none">
-            <IconPlus size={11} className="inline mr-1.5 text-m-red" />
-            TAG THIS IMAGE
+          <div className="absolute top-2 left-2 glass-soft px-3 py-1.5 text-caption text-on-dark pointer-events-none flex items-center gap-1.5">
+            <IconPlus size={12} className="text-accent" />
+            {t("canvas.tagImage")}
           </div>
         )}
 
@@ -639,8 +695,8 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
                   color: "var(--muted)",
                 }}
               >
-                <span className="type-label text-on-dark">
-                  {boxes.length} BX
+                <span className="font-medium text-on-dark">
+                  {boxes.length} {boxes.length === 1 ? t("common.box") : t("common.boxes")}
                 </span>
                 <span>·</span>
                 <span className="tabular-nums">
@@ -648,10 +704,10 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
                 </span>
                 <span className="hidden md:inline">·</span>
                 <span className="hidden md:inline">
-                  DRAG TO DRAW · SHIFT+DRAG TO PAN · WHEEL TO ZOOM
+                  {t("canvas.dragHint")}
                 </span>
                 <span className="ml-auto">
-                  {selectedBoxId ? "BOX SELECTED" : ""}
+                  {selectedBoxId ? t("canvas.boxSelected") : ""}
                 </span>
               </div>
             )}
@@ -791,37 +847,38 @@ interface FloatingZoomProps {
   onReset: () => void;
 }
 function FloatingZoom({ zoom, onZoomIn, onZoomOut, onFit, onReset }: FloatingZoomProps) {
+  const { t } = useLocale();
   return (
     <div className="absolute bottom-2 right-2 glass-soft flex items-center text-on-dark rounded-full overflow-hidden">
       <button
         onClick={onZoomOut}
         className="w-7 h-7 flex items-center justify-center text-[14px] hover:bg-[var(--tint-b)]"
-        aria-label="Zoom out"
-        title="Zoom out"
+        aria-label={t("canvas.zoomOut")}
+        title={t("canvas.zoomOut")}
       >
         −
       </button>
       <button
         onClick={onReset}
         className="px-1.5 h-7 text-[10px] tabular-nums hover:bg-[var(--tint-b)] border-x border-[var(--hairline)] min-w-[42px]"
-        title="Click to reset to 100%"
+        title={t("canvas.resetZoom")}
       >
         {Math.round(zoom * 100)}%
       </button>
       <button
         onClick={onZoomIn}
         className="w-7 h-7 flex items-center justify-center text-[14px] hover:bg-[var(--tint-b)]"
-        aria-label="Zoom in"
-        title="Zoom in"
+        aria-label={t("canvas.zoomIn")}
+        title={t("canvas.zoomIn")}
       >
         +
       </button>
       <button
         onClick={onFit}
-        className="h-7 px-2 text-[10px] type-label hover:bg-[var(--tint-b)] border-l border-[var(--hairline)]"
-        title="Fit to screen (F)"
+        className="h-7 px-2.5 text-[11px] font-medium hover:bg-[var(--tint-b)] border-l border-[var(--hairline)]"
+        title={t("canvas.fit")}
       >
-        FIT
+        {t("canvas.fitBtn")}
       </button>
     </div>
   );
@@ -835,6 +892,7 @@ interface MinimapProps {
   onJump: (worldX: number, worldY: number) => void;
 }
 function Minimap({ image, view, containerSize, boxes, onJump }: MinimapProps) {
+  const { t } = useLocale();
   const W = 96;
   const H = (W * image.height) / image.width;
   const scale = W / image.width;
@@ -845,7 +903,7 @@ function Minimap({ image, view, containerSize, boxes, onJump }: MinimapProps) {
   return (
     <div
       className="absolute top-2 right-2 glass-soft p-1 cursor-crosshair"
-      title="Minimap · click to jump"
+      title={t("canvas.minimap")}
       onClick={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
         const lx = e.clientX - r.left - 4;
@@ -891,6 +949,7 @@ interface ClassificationPanelProps {
 }
 function ClassificationPanel({ image, onClickClass }: ClassificationPanelProps) {
   const ws = useWorkspace();
+  const { t } = useLocale();
   const active = new Set(ws.classifications[image.id] ?? []);
   return (
     <div
@@ -900,9 +959,9 @@ function ClassificationPanel({ image, onClickClass }: ClassificationPanelProps) 
         borderColor: "var(--hairline)",
       }}
     >
-      <span className="type-label text-muted mr-2 shrink-0">TAG:</span>
+      <span className="text-caption font-medium text-muted mr-1 shrink-0">{t("canvas.tagLabel")}</span>
       {ws.classes.length === 0 ? (
-        <span className="text-caption text-muted">CREATE A CLASS FIRST →</span>
+        <span className="text-caption text-muted">{t("canvas.createClassFirst")}</span>
       ) : (
         ws.classes.map((c) => {
           const on = active.has(c.id);
@@ -910,7 +969,7 @@ function ClassificationPanel({ image, onClickClass }: ClassificationPanelProps) 
             <button
               key={c.id}
               onClick={() => onClickClass(c.id)}
-              className={`flex items-center gap-2 h-8 px-3 border transition-colors shrink-0 ${
+              className={`flex items-center gap-2 h-8 px-3 rounded-full border transition-colors shrink-0 ${
                 on ? "" : "text-body hover:border-[var(--muted)]"
               }`}
               style={
@@ -923,7 +982,7 @@ function ClassificationPanel({ image, onClickClass }: ClassificationPanelProps) 
                 className="w-2 h-2"
                 style={{ background: c.color }}
               />
-              <span className="type-label text-[11px]">{c.name}</span>
+              <span className="text-[12px] font-medium">{c.name}</span>
             </button>
           );
         })

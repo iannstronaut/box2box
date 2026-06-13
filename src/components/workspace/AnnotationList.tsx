@@ -12,11 +12,12 @@ import {
 import { clsx } from "../../utils/id";
 import type { BoundingBox } from "../../types";
 import { isUnclass } from "../../types";
+import { useLocale } from "../../context/LocaleContext";
 
 export function AnnotationList() {
   const ws = useWorkspace();
-  const image =
-    ws.images.find((i) => i.id === ws.currentImageId) ?? null;
+  const { t } = useLocale();
+  const image = ws.images.find((i) => i.id === ws.currentImageId) ?? null;
   const fileRef = useRef<HTMLInputElement>(null);
   const [newName, setNewName] = useState("");
   const [tab, setTab] = useState<"boxes" | "classes">(
@@ -26,11 +27,7 @@ export function AnnotationList() {
   const addClass = () => {
     const name = newName.trim();
     if (!name) return;
-    if (
-      !ws.classes.some(
-        (c) => c.name.toLowerCase() === name.toLowerCase(),
-      )
-    ) {
+    if (!ws.classes.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
       ws.addClass(name);
     }
     setNewName("");
@@ -50,9 +47,9 @@ export function AnnotationList() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-canvas/40 border-l border-hairline">
+    <div className="h-full flex flex-col bg-surface-soft/40 border-l border-hairline">
       {/* Tabs */}
-      <div className="px-4 pt-3 flex items-center gap-6 border-b border-hairline">
+      <div className="px-4 pt-3 flex items-center gap-5 border-b border-hairline">
         <button
           className={clsx(
             "tab",
@@ -61,8 +58,8 @@ export function AnnotationList() {
           )}
           onClick={() => setTab("boxes")}
         >
-          <IconCrosshair size={12} className="inline mr-2" />
-          ANNOTATIONS
+          <IconCrosshair size={13} className="inline mr-1.5" />
+          {t("list.annotations")}
         </button>
         <button
           className={clsx(
@@ -72,12 +69,12 @@ export function AnnotationList() {
           )}
           onClick={() => setTab("classes")}
         >
-          CLASSES
+          {t("list.classes")}
         </button>
         {ws.mode === "classification" && (
           <button className="tab tab-active">
-            <IconImage size={12} className="inline mr-2" />
-            CLASSES
+            <IconImage size={13} className="inline mr-1.5" />
+            {t("list.classes")}
           </button>
         )}
       </div>
@@ -123,6 +120,7 @@ function ClassesPanel({
   onImport,
 }: ClassesPanelProps) {
   const ws = useWorkspace();
+  const { t } = useLocale();
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center gap-2">
@@ -130,28 +128,23 @@ function ClassesPanel({
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addClass()}
-          placeholder="new_class_name"
+          placeholder={t("list.addPlaceholder")}
           className="input input-sm flex-1"
         />
         <Button variant="primary" size="sm" onClick={addClass}>
-          <IconPlus size={12} className="mr-1" />
-          ADD
+          <IconPlus size={13} />
+          {t("common.add")}
         </Button>
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onImport}
-        className="w-full"
-      >
-        <IconUpload size={12} className="mr-2" />
-        IMPORT FROM .TXT
+      <Button variant="ghost" size="sm" onClick={onImport} className="w-full">
+        <IconUpload size={13} />
+        {t("list.importTxt")}
       </Button>
 
-      <ul className="divide-y divide-hairline">
+      <ul className="space-y-1">
         {ws.classes.length === 0 ? (
-          <li className="text-caption text-muted py-3">
-            No classes yet. Add one or import a .txt file.
+          <li className="text-body-sm text-muted py-3 leading-relaxed">
+            {t("list.noClasses")}
           </li>
         ) : (
           ws.classes.map((c, i) => {
@@ -161,44 +154,54 @@ function ClassesPanel({
               <li
                 key={c.id}
                 className={clsx(
-                  "flex items-center gap-3 py-2.5 cursor-pointer transition-colors",
+                  "flex items-center gap-2.5 py-2 px-2.5 rounded-lg cursor-pointer transition-colors group",
                   active
-                    ? "bg-[var(--tint-b)] -mx-4 px-4"
+                    ? "bg-[var(--accent-soft)] ring-1 ring-[var(--accent)]/30"
                     : "hover:bg-[var(--tint-a)]",
                 )}
                 onClick={() => ws.setSelectedClassId(active ? null : c.id)}
                 title={
-                  unclass
-                    ? "Default class — boxes can be drawn and reassigned later"
-                    : "Click to set as active class"
+                  unclass ? t("list.unclassTitle") : t("list.setActiveTitle")
                 }
               >
-                <span
-                  className="w-3 h-3 shrink-0"
-                  style={{ background: c.color }}
-                />
-                <span className="font-display text-on-dark text-[13px] flex-1 truncate">
+                <label
+                  className="relative w-3.5 h-3.5 rounded-md shrink-0 ring-1 ring-black/10 cursor-pointer"
+                  onClick={(e) => e.stopPropagation()}
+                  title={t("list.changeColor")}
+                  style={ { background: c.color } }
+                >
+                  <input
+                    type="color"
+                    value={c.color}
+                    onChange={(e) =>
+                      ws.updateClass(c.id, { color: e.target.value })
+                    }
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    aria-label={t("list.changeColorAria", { name: c.name })}
+                  />
+                </label>
+                <span className="font-display font-medium text-on-dark text-[13px] flex-1 truncate">
                   {c.name}
                 </span>
                 {unclass && (
-                  <span className="text-[9px] type-label text-muted">
-                    DEFAULT
+                  <span className="text-[10px] font-medium text-muted">
+                    {t("list.default")}
                   </span>
                 )}
-                <span className="text-caption text-muted w-5 text-right tabular-nums">
+                <kbd className="text-[10px] text-muted bg-[var(--tint-b)] rounded px-1.5 py-0.5 tabular-nums">
                   {i + 1}
-                </span>
-                {active && <IconCheck size={12} className="text-on-dark" />}
-                {!unclass && (
+                </kbd>
+                {active && <IconCheck size={13} className="text-accent" />}
+                {(
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       ws.removeClass(c.id);
                     }}
-                    className="text-muted hover:text-m-red"
-                    aria-label="Delete"
+                    className="text-muted hover:text-rose opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label={t("list.deleteClass")}
                   >
-                    <IconTrash size={12} />
+                    <IconTrash size={13} />
                   </button>
                 )}
               </li>
@@ -212,10 +215,11 @@ function ClassesPanel({
 
 function BoxesPanel({ imageId }: { imageId: string | null }) {
   const ws = useWorkspace();
+  const { t } = useLocale();
   if (!imageId) {
     return (
-      <div className="px-4 py-6 text-caption text-muted">
-        Select an image to see its annotations.
+      <div className="px-4 py-6 text-body-sm text-muted">
+        {t("list.selectImageAnns")}
       </div>
     );
   }
@@ -224,24 +228,28 @@ function BoxesPanel({ imageId }: { imageId: string | null }) {
     <div className="p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="text-caption text-muted">
-          {boxes.length} BOX{boxes.length === 1 ? "" : "ES"}
+          {boxes.length} {boxes.length === 1 ? t("common.box") : t("common.boxes")}
         </div>
         {boxes.length > 0 && (
           <button
             onClick={() => {
-              if (confirm("Delete all boxes in this image?")) {
+              if (confirm(t("list.clearConfirm"))) {
                 ws.setBoxes(imageId, []);
               }
             }}
-            className="text-caption text-muted hover:text-m-red"
+            className="text-caption text-muted hover:text-rose transition-colors"
           >
-            CLEAR ALL
+            {t("list.clearAll")}
           </button>
         )}
       </div>
       {boxes.length === 0 ? (
-        <div className="py-4 text-caption text-muted">
-          No annotations yet. Pick a class, then drag on the canvas.
+        <div className="py-6 text-center">
+          <p className="text-body-sm text-muted leading-relaxed">
+            {t("list.noAnnotations1")}
+            <br />
+            {t("list.noAnnotations2")}
+          </p>
         </div>
       ) : (
         <ul className="space-y-1.5">
@@ -264,18 +272,17 @@ function BoxRow({
   index: number;
 }) {
   const ws = useWorkspace();
+  const { t } = useLocale();
   const cls = ws.classes.find((c) => c.id === box.classId);
   const [editing, setEditing] = useState(false);
 
   return (
-    <li className="glass-soft p-2 flex items-center gap-2 group">
+    <li className="surface-card rounded-lg p-2.5 flex items-center gap-2.5 group">
       <span
-        className="w-2.5 h-2.5 shrink-0"
-        style={{ background: cls?.color ?? "#888" }}
+        className="w-3 h-3 rounded-md shrink-0 ring-1 ring-black/10"
+        style={ { background: cls?.color ?? "#888" } }
       />
-      <span className="text-[10px] type-label text-muted w-4 tabular-nums">
-        {index + 1}
-      </span>
+      <span className="text-[10px] text-muted w-4 tabular-nums">{index + 1}</span>
       <div className="flex-1 min-w-0">
         {editing ? (
           <select
@@ -286,11 +293,12 @@ function BoxRow({
             }}
             onBlur={() => setEditing(false)}
             autoFocus
-            className="w-full px-1 py-0.5 text-[11px] text-on-dark"
-            style={{
-              background: "var(--canvas)",
+            className="w-full px-1.5 py-1 text-[12px] text-on-dark rounded-md"
+            style={ {
+              background: "var(--surface-card)",
               border: "1px solid var(--hairline)",
-            }}
+            } }
+            
           >
             {ws.classes.map((c) => (
               <option key={c.id} value={c.id}>
@@ -301,13 +309,13 @@ function BoxRow({
         ) : (
           <button
             onClick={() => setEditing(true)}
-            className="text-[11px] font-display text-on-dark hover:text-m-blue-dark truncate text-left w-full"
-            title="Click to change class"
+            className="text-[12px] font-medium font-display text-on-dark hover:text-accent truncate text-left w-full transition-colors"
+            title={t("list.changeClassTitle")}
           >
-            {cls?.name ?? "unknown"}
+            {cls?.name ?? t("list.unknown")}
           </button>
         )}
-        <div className="text-[9px] text-muted mt-0.5 tabular-nums">
+        <div className="text-[10px] text-muted mt-0.5 tabular-nums">
           {Math.round(box.w)} × {Math.round(box.h)} @ {Math.round(box.x)},{" "}
           {Math.round(box.y)}
         </div>
@@ -319,10 +327,10 @@ function BoxRow({
             (ws.boxes[imageId] ?? []).filter((b) => b.id !== box.id),
           );
         }}
-        className="text-muted hover:text-m-red opacity-0 group-hover:opacity-100 transition-opacity"
-        aria-label="Delete"
+        className="text-muted hover:text-rose opacity-0 group-hover:opacity-100 transition-opacity"
+        aria-label={t("list.deleteBox")}
       >
-        <IconTrash size={11} />
+        <IconTrash size={12} />
       </button>
     </li>
   );

@@ -1,8 +1,14 @@
 export type AnnotationMode = "detection" | "classification";
 
-export type LabelFormat = "yolo" | "coco" | "voc" | "json";
+export type LabelFormat =
+  | "yolo"
+  | "coco"
+  | "voc"
+  | "json"
+  | "csv"
+  | "jsonl";
 
-export type ExportFormat = "yolo" | "coco" | "voc" | "json";
+export type ExportFormat = LabelFormat;
 
 export const UNCLASS_ID = "__unclass__";
 

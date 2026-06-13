@@ -29,6 +29,8 @@ import {
   boxesToVoc,
   boxesToYolo,
   classesToJson,
+  classificationsToCsv,
+  classificationsToJsonl,
 } from "../utils/annotations";
 
 interface WorkspaceState {
@@ -53,6 +55,11 @@ interface WorkspaceState {
   setExportFormat: (fmt: LabelFormat) => void;
   exportFormat: LabelFormat;
   exportAll: () => Promise<void>;
+  exportDataset: (
+    fmt: LabelFormat,
+  ) => Promise<{ savedToFolder: boolean; fileCount: number }>;
+  isExporting: boolean;
+  exportProgress: { done: number; total: number; label: string } | null;
   openFromPicker: (mode: AnnotationMode) => Promise<void>;
   loadDemo: (mode: AnnotationMode) => void;
   reset: () => void;
@@ -82,6 +89,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(UNCLASS_ID);
   const [exportFormat, setExportFormat] = useState<LabelFormat>("yolo");
   const [status, setStatus] = useState<string>("");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<{
+    done: number;
+    total: number;
+    label: string;
+  } | null>(null);
   const layoutRef = useRef<Awaited<ReturnType<typeof loadProjectLayout>> | null>(
     null,
   );
@@ -114,11 +127,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
               .map((s) => s.trim())
               .filter(Boolean);
             if (names.length && classes.length === 0) {
-              const imported: ClassDef[] = names.map((n, i) => ({
-                id: uid(),
-                name: n,
-                color: pickClassColor(i, []),
-              }));
+              const imported: ClassDef[] = [];
+              names.forEach((n, i) => {
+                imported.push({
+                  id: uid(),
+                  name: n,
+                  color: pickClassColor(i, imported),
+                });
+              });
               if (!cancelled) setClasses(imported);
             }
           } catch {
@@ -174,8 +190,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   };
 
   const removeClass = (id: string) => {
-    if (isUnclass(id)) return; // can't remove unclass
     setClasses((c) => c.filter((x) => x.id !== id));
+    // Deleting the "unclass" default just removes it from the list; boxes still
+    // referencing it show as unassigned until reclassified.
+    if (isUnclass(id)) {
+      if (selectedClassId === id) {
+        const remaining = classes.filter(
+          (x) => x.id !== id && !isUnclass(x.id),
+        );
+        setSelectedClassId(remaining[0]?.id ?? UNCLASS_ID);
+      }
+      return;
+    }
     // Remove from boxes (re-assign to unclass instead of deleting)
     setBoxesMap((m) => {
       const out: Record<string, BoundingBox[]> = {};
@@ -211,22 +237,23 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const openFromPicker = async (m: AnnotationMode) => {
     setMode(m);
-    setStatus("PICKING DIRECTORY…");
+    setExportFormat(m === "classification" ? "csv" : "yolo");
+    setStatus("Choosing a folder…");
     const root = await pickDirectory();
     setRootName(root.name);
     const layout = await loadProjectLayout(root);
     layoutRef.current = layout;
-    setStatus("READING IMAGES…");
+    setStatus("Reading images…");
     const imgs = await readProjectImages(layout);
     setImages(imgs);
-    setStatus(`LOADED ${imgs.length} IMAGES`);
+    setStatus(`Loaded ${imgs.length} images`);
     if (imgs.length > 0) setCurrentImageId(imgs[0].id);
   };
 
   const loadDemo = (m: AnnotationMode) => {
     setMode(m);
-    setRootName("DEMO PROJECT");
-    setExportFormat("yolo");
+    setRootName("Demo project");
+    setExportFormat(m === "classification" ? "csv" : "yolo");
     const demoClasses: ClassDef[] = [
       getUnclassClass(),
       { id: "c1", name: "car", color: "#1c69d4" },
@@ -284,58 +311,210 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setClassMap({});
     setCurrentImageId(imgs[0].id);
     setSelectedClassId("c1");
-    setStatus("DEMO LOADED");
+    setStatus("Demo loaded");
   };
 
-  const exportAll = async () => {
-    if (!layoutRef.current) {
-      setStatus("CANNOT EXPORT: NO LOCAL FOLDER. USE DEMO TO PREVIEW.");
-      return;
+  const buildBlobs = (
+    fmt: LabelFormat,
+  ): { name: string; mime: string; data: BlobPart }[] => {
+    const out: { name: string; mime: string; data: BlobPart }[] = [];
+    if (fmt === "yolo") {
+      out.push({
+        name: "classes.txt",
+        mime: "text/plain",
+        data: classes.map((c) => c.name).join("\n"),
+      });
+      for (const img of images) {
+        out.push({
+          name: `${img.id}.txt`,
+          mime: "text/plain",
+          data: boxesToYolo(
+            boxes[img.id] ?? [],
+            classes,
+            img.width,
+            img.height,
+          ),
+        });
+      }
+    } else if (fmt === "voc") {
+      for (const img of images) {
+        out.push({
+          name: `${img.id}.xml`,
+          mime: "application/xml",
+          data: boxesToVoc(img, boxes[img.id] ?? [], classes),
+        });
+      }
+    } else if (fmt === "coco") {
+      out.push({
+        name: "_annotations.coco.json",
+        mime: "application/json",
+        data: boxesToCoco(images, boxes, classes),
+      });
+    } else if (fmt === "csv") {
+      out.push({
+        name: "labels.csv",
+        mime: "text/csv",
+        data: classificationsToCsv(images, classifications, classes),
+      });
+    } else if (fmt === "jsonl") {
+      out.push({
+        name: "labels.jsonl",
+        mime: "application/x-ndjson",
+        data: classificationsToJsonl(images, classifications, classes),
+      });
+    } else {
+      out.push({
+        name: "labels.json",
+        mime: "application/json",
+        data: classesToJson(images, boxes, classifications, classes),
+      });
     }
-    setStatus("EXPORTING…");
-    const labelsDir = layoutRef.current.labelsDirHandle;
-    if (exportFormat === "yolo") {
-      // Also write classes.txt
+    return out;
+  };
+
+  const downloadBlob = (data: BlobPart, name: string, mime: string) => {
+    const blob = new Blob([data], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const writeToFolder = async (fmt: LabelFormat): Promise<number> => {
+    const labelsDir = layoutRef.current!.labelsDirHandle;
+    let count = 0;
+    if (fmt === "yolo") {
       try {
         const clsFile = await labelsDir.getFileHandle("classes.txt", {
           create: true,
         });
-        await writeTextFile(
-          clsFile,
-          classes.map((c) => c.name).join("\n"),
-        );
+        await writeTextFile(clsFile, classes.map((c) => c.name).join("\n"));
       } catch (e) {
         console.error(e);
       }
-    }
-    for (const img of images) {
-      const imgBoxes = boxes[img.id] ?? [];
-      if (exportFormat === "yolo") {
-        const txt = boxesToYolo(imgBoxes, classes, img.width, img.height);
+      let done = 0;
+      for (const img of images) {
+        setExportProgress({
+          done,
+          total: images.length,
+          label: `Writing ${img.name}`,
+        });
+        const txt = boxesToYolo(
+          boxes[img.id] ?? [],
+          classes,
+          img.width,
+          img.height,
+        );
         const h = await ensureLabelHandle(labelsDir, img.id, "yolo");
         await writeTextFile(h, txt);
-      } else if (exportFormat === "voc") {
-        const xml = boxesToVoc(img, imgBoxes, classes);
+        done += 1;
+        count += 1;
+      }
+    } else if (fmt === "voc") {
+      let done = 0;
+      for (const img of images) {
+        setExportProgress({
+          done,
+          total: images.length,
+          label: `Writing ${img.name}`,
+        });
+        const xml = boxesToVoc(img, boxes[img.id] ?? [], classes);
         const h = await ensureLabelHandle(labelsDir, img.id, "voc");
         await writeTextFile(h, xml);
-      } else if (exportFormat === "coco") {
-        // One COCO JSON per project
-        const json = boxesToCoco(images, boxes, classes);
-        const h = await labelsDir.getFileHandle("_annotations.coco.json", {
-          create: true,
-        });
-        await writeTextFile(h, json);
-        break;
-      } else if (exportFormat === "json") {
-        const json = classesToJson(images, boxes, classifications, classes);
-        const h = await labelsDir.getFileHandle("labels.json", {
-          create: true,
-        });
-        await writeTextFile(h, json);
-        break;
+        done += 1;
+        count += 1;
       }
+    } else if (fmt === "coco") {
+      setExportProgress({ done: 0, total: 1, label: "Writing COCO JSON" });
+      const json = boxesToCoco(images, boxes, classes);
+      const h = await labelsDir.getFileHandle("_annotations.coco.json", {
+        create: true,
+      });
+      await writeTextFile(h, json);
+      count = 1;
+    } else if (fmt === "csv") {
+      setExportProgress({ done: 0, total: 1, label: "Writing labels.csv" });
+      const csv = classificationsToCsv(images, classifications, classes);
+      const h = await labelsDir.getFileHandle("labels.csv", { create: true });
+      await writeTextFile(h, csv);
+      count = 1;
+    } else if (fmt === "jsonl") {
+      setExportProgress({ done: 0, total: 1, label: "Writing labels.jsonl" });
+      const jsonl = classificationsToJsonl(images, classifications, classes);
+      const h = await labelsDir.getFileHandle("labels.jsonl", { create: true });
+      await writeTextFile(h, jsonl);
+      count = 1;
+    } else {
+      setExportProgress({ done: 0, total: 1, label: "Writing labels.json" });
+      const json = classesToJson(images, boxes, classifications, classes);
+      const h = await labelsDir.getFileHandle("labels.json", { create: true });
+      await writeTextFile(h, json);
+      count = 1;
     }
-    setStatus(`EXPORTED TO /${layoutRef.current.labelsDirHandle.name}/`);
+    return count;
+  };
+
+  const exportDataset = async (
+    fmt: LabelFormat,
+  ): Promise<{ savedToFolder: boolean; fileCount: number }> => {
+    setIsExporting(true);
+    setExportProgress({
+      done: 0,
+      total: images.length || 1,
+      label: "Preparing files",
+    });
+    // Let the overlay paint before heavy work begins.
+    await new Promise((r) => setTimeout(r, 280));
+    try {
+      if (layoutRef.current) {
+        const fileCount = await writeToFolder(fmt);
+        setExportProgress({
+          done: fileCount,
+          total: fileCount || 1,
+          label: "Finishing up",
+        });
+        setStatus(`Exported to /${layoutRef.current.labelsDirHandle.name}/`);
+        await new Promise((r) => setTimeout(r, 450));
+        return { savedToFolder: true, fileCount };
+      }
+      const blobs = buildBlobs(fmt);
+      let done = 0;
+      for (const b of blobs) {
+        setExportProgress({
+          done,
+          total: blobs.length,
+          label: `Saving ${b.name}`,
+        });
+        downloadBlob(b.data, b.name, b.mime);
+        done += 1;
+        await new Promise((r) => setTimeout(r, 140));
+      }
+      setExportProgress({
+        done: blobs.length,
+        total: blobs.length,
+        label: "Done",
+      });
+      setStatus(
+        `Downloaded ${blobs.length} file${blobs.length === 1 ? "" : "s"}`,
+      );
+      await new Promise((r) => setTimeout(r, 450));
+      return { savedToFolder: false, fileCount: blobs.length };
+    } finally {
+      setExportProgress(null);
+      setIsExporting(false);
+    }
+  };
+
+  const exportAll = async () => {
+    if (!layoutRef.current && images.length === 0) {
+      setStatus("Nothing to export yet.");
+      return;
+    }
+    await exportDataset(exportFormat);
   };
 
   const reset = () => {
@@ -384,6 +563,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       exportFormat,
       setExportFormat,
       exportAll,
+      exportDataset,
+      isExporting,
+      exportProgress,
       openFromPicker,
       loadDemo,
       reset,
@@ -396,7 +578,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mode, rootName, images, classes, boxes, classifications, currentImageId, selectedClassId, exportFormat, status, isReady],
+    [mode, rootName, images, classes, boxes, classifications, currentImageId, selectedClassId, exportFormat, status, isReady, isExporting, exportProgress],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

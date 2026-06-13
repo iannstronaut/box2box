@@ -273,3 +273,38 @@ export function classesToJson(
     2,
   );
 }
+
+// ---- Classification-mode exports (image-level labels, not bounding boxes) ----
+
+export function classificationsToCsv(
+  images: ImageFile[],
+  allClassifications: Record<string, string[]>,
+  classes: ClassDef[],
+): string {
+  const nameOf = new Map(classes.map((c) => [c.id, c.name]));
+  const rows = ["filename,labels"];
+  for (const img of images) {
+    const labels = (allClassifications[img.id] ?? [])
+      .map((id) => nameOf.get(id) ?? "")
+      .filter(Boolean);
+    const cell = labels.join(";").replace(/"/g, '""');
+    rows.push(`"${img.name.replace(/"/g, '""')}","${cell}"`);
+  }
+  return rows.join("\n");
+}
+
+export function classificationsToJsonl(
+  images: ImageFile[],
+  allClassifications: Record<string, string[]>,
+  classes: ClassDef[],
+): string {
+  const nameOf = new Map(classes.map((c) => [c.id, c.name]));
+  return images
+    .map((img) => {
+      const labels = (allClassifications[img.id] ?? [])
+        .map((id) => nameOf.get(id) ?? "")
+        .filter(Boolean);
+      return JSON.stringify({ file: img.name, labels });
+    })
+    .join("\n");
+}

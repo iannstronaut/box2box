@@ -1,7 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { Button } from "../common/Primitives";
-import { MStripe } from "../common/MStripe";
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -11,23 +10,21 @@ import {
   IconImage,
   IconClose,
   IconPlus,
+  IconCheck,
 } from "../common/Icons";
 import { clsx } from "../../utils/id";
 import type { LabelFormat } from "../../types";
-import {
-  boxesToCoco,
-  boxesToYolo,
-  boxesToVoc,
-  classesToJson,
-} from "../../utils/annotations";
 import b2bLight from "/b2b-light.png";
 import b2bDark from "/b2b-dark.png";
 import { useTheme } from "../../context/ThemeContext";
 import { ThemeToggle } from "../common/ThemeToggle";
+import { LocaleToggle } from "../common/LocaleToggle";
+import { useLocale } from "../../context/LocaleContext";
 
 export function TopBar() {
   const ws = useWorkspace();
   const { resolved } = useTheme();
+  const { t } = useLocale();
   const fileRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
@@ -67,7 +64,10 @@ export function TopBar() {
             img.src = url;
           });
           return {
-            id: file.name.replace(/\.[^.]+$/, "") + "-" + Math.random().toString(36).slice(2, 6),
+            id:
+              file.name.replace(/\.[^.]+$/, "") +
+              "-" +
+              Math.random().toString(36).slice(2, 6),
             name: file.name,
             handle: {} as FileSystemFileHandle,
             file,
@@ -82,55 +82,54 @@ export function TopBar() {
     ws.appendImages(newImages);
   };
 
+  const isDetection = ws.mode === "detection";
+
   return (
     <header className="bg-canvas/80 backdrop-blur-glass border-b border-hairline z-20">
-      <MStripe />
-      <div className="h-12 flex items-center px-4 gap-4">
-        <div className="flex items-center gap-2.5 shrink-0">
+      <div className="h-14 flex items-center px-4 gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           <img
-            src={resolved === "dark" ? b2bLight : b2bDark}
+            src={resolved === "dark" ? b2bDark : b2bLight}
             alt="Box2Box"
             className="h-7 w-7 object-contain"
             draggable={false}
           />
-          <span className="font-display text-on-dark text-[14px] tracking-[0.2em]">
-            BOX2BOX
+          <span className="hidden sm:inline font-display font-semibold text-on-dark text-[14px] tracking-tight">
+            Box2Box
           </span>
         </div>
 
-        <div className="h-6 w-px bg-hairline" />
+        <div className="h-5 w-px bg-[var(--hairline)]" />
 
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="type-label text-on-dark truncate max-w-[200px]">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="text-body-sm font-medium text-on-dark truncate max-w-[180px]">
             {ws.rootName}
           </span>
           <span
             className={clsx(
-              "type-label px-2 py-1 flex items-center gap-1.5 border",
-              ws.mode === "detection"
-                ? "border-m-blue-dark/40 text-m-blue-dark"
-                : "border-m-red/40 text-m-red",
+              "chip",
+              isDetection ? "text-accent" : "text-rose",
             )}
           >
-            {ws.mode === "detection" ? <IconBox size={11} /> : <IconImage size={11} />}
-            {ws.mode === "detection" ? "DETECTION" : "CLASSIFICATION"}
+            {isDetection ? <IconBox size={12} /> : <IconImage size={12} />}
+            {isDetection ? t("topbar.detection") : t("topbar.classification")}
           </span>
         </div>
 
-        <div className="h-6 w-px bg-white/10" />
+        <div className="h-5 w-px bg-[var(--hairline)]" />
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={ws.goPrev}
             disabled={idx <= 0}
-            className="btn-icon !w-9 !h-9 disabled:opacity-30"
-            aria-label="Previous image"
-            title="Previous ( [ or P )"
+            className="btn-icon-sm disabled:opacity-30"
+            aria-label={t("topbar.prev")}
+            title={t("topbar.prevTitle")}
           >
             <IconChevronLeft size={16} />
           </button>
-          <div className="glass-soft px-3 h-9 flex items-center gap-2 min-w-[120px] justify-center">
-            <span className="type-label text-on-dark tabular-nums">
+          <div className="surface-soft rounded-lg px-3 h-9 flex items-center gap-2 min-w-[110px] justify-center">
+            <span className="text-body-sm font-semibold text-on-dark tabular-nums">
               {idx >= 0 ? idx + 1 : 0}
             </span>
             <span className="text-muted text-caption">/</span>
@@ -138,7 +137,7 @@ export function TopBar() {
               {ws.images.length}
             </span>
             {current && (
-              <span className="text-caption text-muted truncate ml-2 hidden md:inline max-w-[200px]">
+              <span className="text-caption text-muted truncate ml-1.5 hidden xl:inline max-w-[160px]">
                 {current.name}
               </span>
             )}
@@ -146,34 +145,41 @@ export function TopBar() {
           <button
             onClick={ws.goNext}
             disabled={idx === -1 || idx >= ws.images.length - 1}
-            className="btn-icon !w-9 !h-9 disabled:opacity-30"
-            aria-label="Next image"
-            title="Next ( ] or N )"
+            className="btn-icon-sm disabled:opacity-30"
+            aria-label={t("topbar.next")}
+            title={t("topbar.nextTitle")}
           >
             <IconChevronRight size={16} />
           </button>
         </div>
 
-        <div className="hidden lg:flex items-center gap-2 text-caption text-muted">
-          <span className="w-1.5 h-1.5 bg-success" />
+        <div className="hidden lg:flex items-center gap-2 text-caption text-muted ml-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-success" />
           <span>
-            {ws.mode === "detection"
-              ? `${totalBoxes} BOXES · ${ws.classes.length} CLASSES`
-              : `${taggedImages} TAGGED · ${ws.classes.length} CLASSES`}
+            {isDetection
+              ? t("topbar.statBoxes", {
+                  boxes: totalBoxes,
+                  classes: ws.classes.length,
+                })
+              : t("topbar.statTagged", {
+                  tagged: taggedImages,
+                  classes: ws.classes.length,
+                })}
           </span>
         </div>
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          <LocaleToggle size="sm" />
           <ThemeToggle size="sm" />
-          <div className="h-6 w-px bg-hairline" />
+          <div className="h-5 w-px bg-[var(--hairline)]" />
           <Button
             variant="ghost"
             size="sm"
             onClick={() => importRef.current?.click()}
-            title="Import classes from .txt"
+            title={t("topbar.importTitle")}
           >
-            <IconUpload size={14} className="mr-2" />
-            IMPORT
+            <IconUpload size={14} />
+            <span className="hidden md:inline">{t("topbar.import")}</span>
           </Button>
           <input
             ref={importRef}
@@ -187,29 +193,14 @@ export function TopBar() {
             }}
           />
 
-          <div className="relative">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setExportOpen((v) => !v)}
-              title="Export dataset (Ctrl+S)"
-            >
-              <IconDownload size={14} className="mr-2" />
-              EXPORT
-            </Button>
-            {exportOpen && (
-              <ExportDropdown onClose={() => setExportOpen(false)} />
-            )}
-          </div>
-
           <Button
             variant="ghost"
             size="sm"
             onClick={() => fileRef.current?.click()}
-            title="Add more image files"
+            title={t("topbar.addTitle")}
           >
-            <IconPlus size={14} className="mr-2" />
-            ADD
+            <IconPlus size={14} />
+            <span className="hidden md:inline">{t("topbar.addImages")}</span>
           </Button>
           <input
             ref={fileRef}
@@ -220,19 +211,34 @@ export function TopBar() {
             onChange={(e) => onImportImages(e.target.files)}
           />
 
-          <Button
-            variant="ghost"
-            size="sm"
+          <div className="relative">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setExportOpen((v) => !v)}
+              title={t("topbar.exportTitle")}
+            >
+              <IconDownload size={14} />
+              {t("topbar.export")}
+            </Button>
+            {exportOpen && (
+              <ExportDropdown onClose={() => setExportOpen(false)} />
+            )}
+          </div>
+
+          <button
             onClick={() => {
-              if (confirm("Close workspace and return to landing?")) {
+              if (confirm(t("topbar.closeConfirm"))) {
                 ws.reset();
                 window.location.href = "/";
               }
             }}
-            title="Close workspace"
+            className="btn-icon-sm"
+            title={t("topbar.closeWorkspace")}
+            aria-label={t("topbar.closeWorkspace")}
           >
-            <IconClose size={14} />
-          </Button>
+            <IconClose size={16} />
+          </button>
         </div>
       </div>
     </header>
@@ -241,27 +247,36 @@ export function TopBar() {
 
 function ExportDropdown({ onClose }: { onClose: () => void }) {
   const ws = useWorkspace();
+  const { t } = useLocale();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const exportDirect = async (fmt: LabelFormat) => {
     setBusy(true);
     setResult(null);
     try {
-      if (ws.hasFileSystem) {
-        await ws.exportAll();
-        setResult(`EXPORTED TO /LABELS/`);
-      } else {
-        const blobs = buildBlobs(fmt, ws);
-        for (const b of blobs) {
-          downloadBlob(b.data, b.name, b.mime);
-        }
-        setResult(
-          `DOWNLOADED ${blobs.length} FILE${blobs.length === 1 ? "" : "S"}`,
-        );
-      }
+      const r = await ws.exportDataset(fmt);
+      setResult(
+        r.savedToFolder
+          ? t("dropdown.saved", {
+              count: r.fileCount,
+              files: r.fileCount === 1 ? t("common.file") : t("common.files"),
+            })
+          : t("dropdown.downloaded", {
+              count: r.fileCount,
+              files: r.fileCount === 1 ? t("common.file") : t("common.files"),
+            }),
+      );
     } catch (e) {
-      setResult("ERROR: " + (e as Error).message);
+      setResult(t("dropdown.error", { message: (e as Error).message }));
     } finally {
       setBusy(false);
     }
@@ -269,112 +284,82 @@ function ExportDropdown({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="absolute right-0 top-full mt-2 w-80 glass-strong z-30 animate-scale-in"
+      className="absolute right-0 top-full mt-2 w-80 popover z-30 animate-scale-in overflow-hidden"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="p-4 border-b border-hairline">
-        <div className="type-label text-on-dark">EXPORT FORMAT</div>
+        <div className="text-[13px] font-semibold font-display text-on-dark">
+          {t("dropdown.choose")}
+        </div>
         <div className="text-caption text-muted mt-1">
           {ws.hasFileSystem
-            ? "WRITES DIRECTLY TO YOUR /LABELS FOLDER"
-            : "NO FOLDER OPENED — FILES WILL DOWNLOAD"}
+            ? t("dropdown.writesDirect")
+            : t("dropdown.willDownload")}
+          {ws.mode === "classification" ? t("dropdown.classFormats") : ""}
         </div>
       </div>
       <div className="p-2">
         {(
-          [
-            { id: "yolo" as const, label: "YOLO", ext: ".txt + classes.txt" },
-            { id: "coco" as const, label: "COCO", ext: "_annotations.coco.json" },
-            { id: "voc" as const, label: "Pascal VOC", ext: ".xml per image" },
-            { id: "json" as const, label: "JSON", ext: "labels.json" },
-          ]
+          (ws.mode === "classification"
+            ? [
+                { id: "csv" as const, label: "CSV", ext: "labels.csv" },
+                {
+                  id: "jsonl" as const,
+                  label: "JSON Lines",
+                  ext: "labels.jsonl",
+                },
+                { id: "json" as const, label: "JSON", ext: "labels.json" },
+              ]
+            : [
+                {
+                  id: "yolo" as const,
+                  label: "YOLO",
+                  ext: ".txt + classes.txt",
+                },
+                {
+                  id: "coco" as const,
+                  label: "COCO",
+                  ext: "_annotations.coco.json",
+                },
+                {
+                  id: "voc" as const,
+                  label: "Pascal VOC",
+                  ext: ".xml per image",
+                },
+                { id: "json" as const, label: "JSON", ext: "labels.json" },
+              ])
         ).map((f) => (
           <button
             key={f.id}
             disabled={busy}
             onClick={() => exportDirect(f.id)}
-            className="w-full text-left p-3 hover:bg-[var(--tint-a)] flex items-center justify-between group disabled:opacity-50"
+            className="w-full text-left p-3 rounded-lg hover:bg-[var(--tint-a)] flex items-center justify-between group disabled:opacity-50 transition-colors"
           >
             <div>
-              <div className="font-display text-on-dark text-[14px]">
+              <div className="font-display font-medium text-on-dark text-[14px]">
                 {f.label}
               </div>
               <div className="text-caption text-muted">{f.ext}</div>
             </div>
             <IconDownload
-              size={14}
-              className="text-muted group-hover:text-on-dark"
+              size={15}
+              className="text-muted group-hover:text-accent transition-colors"
             />
           </button>
         ))}
       </div>
       {result && (
-        <div className="px-4 py-3 border-t border-hairline text-caption text-m-blue-dark">
+        <div className="px-4 py-3 border-t border-hairline text-caption text-success flex items-center gap-1.5">
+          <IconCheck size={13} />
           {result}
         </div>
       )}
       <button
         onClick={onClose}
-        className="w-full p-3 text-caption text-muted hover:text-on-dark border-t border-hairline"
+        className="w-full p-3 text-caption text-muted hover:text-on-dark border-t border-hairline transition-colors"
       >
-        CLOSE
+        {t("common.close")}
       </button>
     </div>
   );
-}
-
-function buildBlobs(
-  fmt: LabelFormat,
-  ws: ReturnType<typeof useWorkspace>,
-): { name: string; mime: string; data: BlobPart }[] {
-  const out: { name: string; mime: string; data: BlobPart }[] = [];
-  if (fmt === "yolo") {
-    out.push({
-      name: "classes.txt",
-      mime: "text/plain",
-      data: ws.classes.map((c) => c.name).join("\n"),
-    });
-    for (const img of ws.images) {
-      const txt = boxesToYolo(
-        ws.boxes[img.id] ?? [],
-        ws.classes,
-        img.width,
-        img.height,
-      );
-      out.push({ name: `${img.id}.txt`, mime: "text/plain", data: txt });
-    }
-  } else if (fmt === "voc") {
-    for (const img of ws.images) {
-      const xml = boxesToVoc(img, ws.boxes[img.id] ?? [], ws.classes);
-      out.push({ name: `${img.id}.xml`, mime: "application/xml", data: xml });
-    }
-  } else if (fmt === "coco") {
-    const json = boxesToCoco(ws.images, ws.boxes, ws.classes);
-    out.push({
-      name: "_annotations.coco.json",
-      mime: "application/json",
-      data: json,
-    });
-  } else {
-    const json = classesToJson(
-      ws.images,
-      ws.boxes,
-      ws.classifications,
-      ws.classes,
-    );
-    out.push({ name: "labels.json", mime: "application/json", data: json });
-  }
-  return out;
-}
-
-function downloadBlob(data: BlobPart, name: string, mime: string) {
-  const blob = new Blob([data], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
