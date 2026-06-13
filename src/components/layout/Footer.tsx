@@ -6,7 +6,7 @@ import { IconShield, IconGithub } from "../common/Icons";
 import { useLocale } from "../../context/LocaleContext";
 
 // TODO: replace with the real repository URL once the GitHub repo exists.
-const GITHUB_REPO_URL = "https://github.com/your-org/box2box";
+const GITHUB_REPO_URL = "https://github.com/iannstronaut/box2box";
 
 type FooterLink = { label: string; to: string };
 
