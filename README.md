@@ -171,7 +171,12 @@ Box2Box is private by design. Your files stay on your machine, exports are writt
 Found a bug or have a feature request? Please **open an issue on the GitHub repository** — it is the best way to reach the team and track progress. Since Box2Box is local-first, we cannot see your files or data, so please include enough detail (expected behavior, what happened, steps to reproduce, and screenshots) for us to understand the problem.
 ​
 
+## Author
+
+**iannstronaut** — [github.com/iannstronaut](https://github.com/iannstronaut)
+
 ## License
 
 ​
+
 Released under the MIT License.

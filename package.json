@@ -2,6 +2,10 @@
   "name": "box2box",
   "private": true,
   "version": "0.0.0",
+  "author": {
+    "name": "iannstronaut",
+    "url": "https://github.com/iannstronaut"
+  },
   "license": "MIT",
   "type": "module",
   "scripts": {

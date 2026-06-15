@@ -99,6 +99,18 @@ export function Footer() {
             {t("footer.rights", { year: new Date().getFullYear() })}
           </p>
           <div className="flex items-center gap-3 text-caption text-muted">
+            <span>
+              Made by{" "}
+              <a
+                href="https://github.com/iannstronaut"
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-on-dark transition-colors"
+              >
+                iannstronaut
+              </a>
+            </span>
+            <span className="w-1 h-1 rounded-full bg-[var(--hairline-strong)]" />
             <span className="inline-flex items-center gap-1.5">
               <IconShield size={13} className="text-success" />
               {t("nav.localFirst")}

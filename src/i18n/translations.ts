@@ -103,7 +103,7 @@ const en: Dict = {
   "footer.tagline":
     "A calm, local-first studio for building training-ready image datasets.",
   "footer.rights":
-    "© {year} Box2Box · Your images and labels never leave your device.",
+    "© {year} Box2Box by iannstronaut · Your images and labels never leave your device.",
   "footer.col.product": "Product",
   "footer.col.annotate": "Annotate",
   "footer.col.formats": "Formats",
@@ -359,7 +359,7 @@ const id: Dict = {
   "footer.tagline":
     "Studio berbasis lokal yang tenang untuk membangun dataset gambar yang siap dilatih.",
   "footer.rights":
-    "© {year} Box2Box · Gambar dan label Anda tidak pernah keluar dari perangkat Anda.",
+    "© {year} Box2Box oleh iannstronaut · Gambar dan label Anda tidak pernah keluar dari perangkat Anda.",
   "footer.col.product": "Produk",
   "footer.col.annotate": "Anotasi",
   "footer.col.formats": "Format",
@@ -464,7 +464,8 @@ const id: Dict = {
   // ---- export dropdown ----
   "dropdown.choose": "Pilih format ekspor",
   "dropdown.writesDirect": "Menulis langsung ke folder /labels Anda.",
-  "dropdown.willDownload": "Tidak ada folder terbuka — file akan diunduh sebagai gantinya.",
+  "dropdown.willDownload":
+    "Tidak ada folder terbuka — file akan diunduh sebagai gantinya.",
   "dropdown.classFormats": " Format ini dibuat untuk klasifikasi gambar.",
   "dropdown.saved": "Menyimpan {count} {files} ke /labels",
   "dropdown.downloaded": "Mengunduh {count} {files}",
@@ -506,7 +507,8 @@ const id: Dict = {
   "canvas.drawingUnclass":
     "Menggambar sebagai 'unclass' — ubah kelas di sidebar kanan",
   "canvas.unclass": "unclass",
-  "canvas.dragHint": "Seret untuk menggambar · Shift-seret untuk geser · Scroll untuk zoom",
+  "canvas.dragHint":
+    "Seret untuk menggambar · Shift-seret untuk geser · Scroll untuk zoom",
   "canvas.boxSelected": "Kotak terpilih",
   "canvas.zoomOut": "Perkecil",
   "canvas.zoomIn": "Perbesar",
