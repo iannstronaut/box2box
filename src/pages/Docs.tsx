@@ -97,7 +97,7 @@ function Block({ block }: { block: DocBlock }) {
 }
 
 export function Docs() {
-  const { locale, t } = useLocale();
+  const { locale } = useLocale();
   const location = useLocation();
   const docs = DOCS[locale];
 

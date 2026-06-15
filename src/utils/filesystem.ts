@@ -16,6 +16,8 @@ const LABEL_EXTS: Record<LabelFormat, string[]> = {
   coco: ["json"],
   voc: ["xml"],
   json: ["json"],
+  csv: ["csv"],
+  jsonl: ["jsonl"],
 };
 
 function baseName(name: string): string {

@@ -1,0 +1,7 @@
+services:
+  box2box:
+    container_name: box2box
+    build: .
+    ports:
+      - "8000:80"
+    restart: unless-stopped
