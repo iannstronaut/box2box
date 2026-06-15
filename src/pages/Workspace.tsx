@@ -146,6 +146,7 @@ export function Workspace() {
           onClose={() => setPickerOpen(false)}
           onSelect={onSelect}
         />
+        <ImportOverlay />
       </div>
     );
   }
@@ -154,7 +155,7 @@ export function Workspace() {
   return (
     <div className="h-screen flex flex-col bg-canvas overflow-hidden">
       <TopBar />
-      <div className="flex-1 grid grid-cols-[248px_1fr_312px] min-h-0">
+      <div className="flex-1 grid grid-cols-[248px_1fr_312px] grid-rows-[minmax(0,1fr)] min-h-0">
         <ImageList />
 
         <main className="flex flex-col min-w-0 min-h-0">
@@ -178,6 +179,53 @@ export function Workspace() {
       />
       <HelpButton onClick={() => setHelpOpen(true)} />
       <ExportOverlay />
+      <ImportOverlay />
+    </div>
+  );
+}
+
+function ImportOverlay() {
+  const ws = useWorkspace();
+  const { t } = useLocale();
+  if (!ws.isImporting) return null;
+  const p = ws.importProgress;
+  const pct =
+    p && p.total > 0 ? Math.min(100, Math.round((p.done / p.total) * 100)) : 0;
+  const phaseLabel =
+    p?.phase === "images"
+      ? t("import.images")
+      : p?.phase === "labels"
+        ? t("import.labels")
+        : p?.phase === "detect"
+          ? t("import.detect")
+          : t("import.folder");
+  const subLabel =
+    p?.label && p.phase !== "folder" && p.label !== "detect" && p.label !== "done"
+      ? p.label
+      : p?.phase === "detect"
+        ? t("import.detect")
+        : t("import.working");
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[var(--overlay-b)] backdrop-blur-sm animate-fade-in">
+      <div className="popover w-full max-w-sm p-7 animate-scale-in text-center">
+        <div className="mx-auto mb-5 w-12 h-12 rounded-full border-[3px] border-[var(--tint-strong)] border-t-[var(--accent)] animate-spin" />
+        <div className="type-display text-title-md mb-1">
+          {t("import.importing")}
+        </div>
+        <div className="text-body-sm text-muted mb-1">{phaseLabel}</div>
+        <div className="text-caption text-muted mb-5 truncate" title={subLabel}>
+          {subLabel}
+        </div>
+        <div className="h-2 rounded-full bg-[var(--tint-b)] overflow-hidden">
+          <div
+            className="h-full rounded-full bg-[var(--accent)] transition-all duration-200"
+            style={ { width: `${pct}%` } }
+          />
+        </div>
+        <div className="text-caption text-muted mt-2 tabular-nums">
+          {p && p.total > 0 ? `${p.done} / ${p.total}` : null}
+        </div>
+      </div>
     </div>
   );
 }

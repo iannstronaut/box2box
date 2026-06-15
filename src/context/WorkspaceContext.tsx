@@ -23,7 +23,7 @@ import {
   readProjectImages,
   writeTextFile,
 } from "../utils/filesystem";
-import { readBoxesForImage } from "../utils/annotations";
+import { importDataset } from "../utils/annotations";
 import {
   boxesToCoco,
   boxesToVoc,
@@ -60,6 +60,13 @@ interface WorkspaceState {
   ) => Promise<{ savedToFolder: boolean; fileCount: number }>;
   isExporting: boolean;
   exportProgress: { done: number; total: number; label: string } | null;
+  isImporting: boolean;
+  importProgress: {
+    done: number;
+    total: number;
+    label: string;
+    phase: string;
+  } | null;
   openFromPicker: (mode: AnnotationMode) => Promise<void>;
   loadDemo: (mode: AnnotationMode) => void;
   reset: () => void;
@@ -95,6 +102,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     total: number;
     label: string;
   } | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{
+    done: number;
+    total: number;
+    label: string;
+    phase: string;
+  } | null>(null);
   const layoutRef = useRef<Awaited<ReturnType<typeof loadProjectLayout>> | null>(
     null,
   );
@@ -108,59 +122,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const isReady = images.length > 0;
-
-  // Load any existing labels for images once classes are available
-  useEffect(() => {
-    if (!isReady) return;
-    let cancelled = false;
-    (async () => {
-      // Try to find a classes.txt inside labels dir
-      try {
-        const labelsDir = layoutRef.current?.labelsDirHandle;
-        if (labelsDir) {
-          try {
-            const classesFile = await labelsDir.getFileHandle("classes.txt");
-            const f = await classesFile.getFile();
-            const text = await f.text();
-            const names = text
-              .split(/\r?\n/)
-              .map((s) => s.trim())
-              .filter(Boolean);
-            if (names.length && classes.length === 0) {
-              const imported: ClassDef[] = [];
-              names.forEach((n, i) => {
-                imported.push({
-                  id: uid(),
-                  name: n,
-                  color: pickClassColor(i, imported),
-                });
-              });
-              if (!cancelled) setClasses(imported);
-            }
-          } catch {
-            /* not present */
-          }
-        }
-      } catch {
-        /* noop */
-      }
-
-      const next: Record<string, BoundingBox[]> = {};
-      const nextCls: Record<string, string[]> = {};
-      for (const img of images) {
-        const r = await readBoxesForImage(img, classes);
-        next[img.id] = r.boxes;
-        nextCls[img.id] = r.classifications;
-      }
-      if (cancelled) return;
-      setBoxesMap(next);
-      setClassMap(nextCls);
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, classes.length === 0]);
 
   const setBoxes = (imageId: string, next: BoundingBox[]) => {
     setBoxesMap((m) => ({ ...m, [imageId]: next }));
@@ -237,17 +198,71 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const openFromPicker = async (m: AnnotationMode) => {
     setMode(m);
-    setExportFormat(m === "classification" ? "csv" : "yolo");
-    setStatus("Choosing a folder…");
-    const root = await pickDirectory();
-    setRootName(root.name);
-    const layout = await loadProjectLayout(root);
-    layoutRef.current = layout;
-    setStatus("Reading images…");
-    const imgs = await readProjectImages(layout);
-    setImages(imgs);
-    setStatus(`Loaded ${imgs.length} images`);
-    if (imgs.length > 0) setCurrentImageId(imgs[0].id);
+    setIsImporting(true);
+    setImportProgress({ done: 0, total: 1, label: "", phase: "folder" });
+    try {
+      setStatus("Choosing a folder…");
+      const root = await pickDirectory();
+      setRootName(root.name);
+      const layout = await loadProjectLayout(root);
+      layoutRef.current = layout;
+
+      // Let the overlay paint before heavy work begins.
+      await new Promise((r) => setTimeout(r, 60));
+
+      setStatus("Reading images…");
+      setImportProgress({ done: 0, total: 1, label: "", phase: "images" });
+      const imgs = await readProjectImages(layout, (done, total, label) => {
+        setImportProgress({ done, total, label, phase: "images" });
+      });
+      setImages(imgs);
+
+      setStatus("Detecting labels…");
+      setImportProgress({
+        done: 0,
+        total: imgs.length || 1,
+        label: "",
+        phase: "labels",
+      });
+      const imported = await importDataset(
+        layout.labelsDirHandle,
+        imgs,
+        (done, total, label) => {
+          setImportProgress({ done, total, label, phase: "labels" });
+        },
+      );
+
+      if (imported.classes.length > 0) {
+        setClasses(imported.classes);
+        setSelectedClassId(imported.classes[0].id);
+      } else {
+        setClasses([getUnclassClass()]);
+        setSelectedClassId(UNCLASS_ID);
+      }
+      setBoxesMap(imported.boxes);
+      setClassMap(imported.classifications);
+
+      const detectedFmt = imported.format;
+      const isClassificationFmt =
+        detectedFmt === "csv" || detectedFmt === "jsonl";
+      setMode(isClassificationFmt ? "classification" : "detection");
+      setExportFormat(
+        (detectedFmt as LabelFormat) ??
+          (isClassificationFmt ? "csv" : "yolo"),
+      );
+
+      const fmtLabel = detectedFmt ? ` (${detectedFmt})` : "";
+      setStatus(
+        `Loaded ${imgs.length} images${fmtLabel}` +
+          (imported.classes.length
+            ? `, ${imported.classes.length} classes`
+            : ""),
+      );
+      if (imgs.length > 0) setCurrentImageId(imgs[0].id);
+    } finally {
+      setIsImporting(false);
+      setImportProgress(null);
+    }
   };
 
   const loadDemo = (m: AnnotationMode) => {
@@ -566,6 +581,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       exportDataset,
       isExporting,
       exportProgress,
+      isImporting,
+      importProgress,
       openFromPicker,
       loadDemo,
       reset,
@@ -578,7 +595,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mode, rootName, images, classes, boxes, classifications, currentImageId, selectedClassId, exportFormat, status, isReady, isExporting, exportProgress],
+    [mode, rootName, images, classes, boxes, classifications, currentImageId, selectedClassId, exportFormat, status, isReady, isExporting, exportProgress, isImporting, importProgress],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

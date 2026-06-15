@@ -74,7 +74,7 @@ async function ensureSubdir(
   return parent.getDirectoryHandle(name, { create: true });
 }
 
-async function listEntries(
+export async function listEntries(
   dir: FileSystemDirectoryHandle,
 ): Promise<string[]> {
   const names: string[] = [];
@@ -134,19 +134,30 @@ export async function loadProjectLayout(
   return { rootHandle: root, imagesDirHandle, labelsDirHandle };
 }
 
+export type ProgressCb = (done: number, total: number, label: string) => void;
+
 export async function readProjectImages(
   layout: ProjectLayout,
+  onProgress?: ProgressCb,
 ): Promise<ImageFile[]> {
   const imagesDir = layout.imagesDirHandle;
-  const labelsDir = layout.labelsDirHandle;
-  const labelNames = new Set(await listEntries(labelsDir));
 
-  const result: ImageFile[] = [];
+  // First pass: collect image entries so we can report a real total.
+  const entries: { name: string; handle: FileSystemFileHandle }[] = [];
   // @ts-expect-error - values() iterator
   for await (const entry of imagesDir.values()) {
     if (entry.kind !== "file") continue;
     if (!IMG_EXTS.has(extOf(entry.name))) continue;
-    const handle = entry as FileSystemFileHandle;
+    entries.push({ name: entry.name, handle: entry as FileSystemFileHandle });
+  }
+  const total = entries.length;
+
+  const result: ImageFile[] = [];
+  let done = 0;
+  for (const { name, handle } of entries) {
+    onProgress?.(done, total, name);
+    // Yield to the event loop so the UI can paint the progress overlay.
+    await new Promise((r) => setTimeout(r, 0));
     const file = await handle.getFile();
     const url = URL.createObjectURL(file);
     const dims = await readImageDimensions(url).catch(() => ({
@@ -154,36 +165,20 @@ export async function readProjectImages(
       height: 0,
     }));
 
-    const base = baseName(entry.name);
-    let labelHandle: FileSystemFileHandle | null = null;
-    let labelFormat: LabelFormat | null = null;
-    for (const fmt of ["yolo", "coco", "voc", "json"] as LabelFormat[]) {
-      for (const ext of LABEL_EXTS[fmt]) {
-        const candidate = `${base}.${ext}`;
-        if (labelNames.has(candidate)) {
-          try {
-            labelHandle = await labelsDir.getFileHandle(candidate);
-            labelFormat = fmt;
-            break;
-          } catch {
-            // ignore
-          }
-        }
-      }
-      if (labelHandle) break;
-    }
-
+    const base = baseName(name);
     result.push({
       id: base,
-      name: entry.name,
+      name,
       handle,
       file,
       url,
       width: dims.width,
       height: dims.height,
-      labelHandle,
-      labelFormat,
+      labelHandle: null,
+      labelFormat: null,
     });
+    done += 1;
+    onProgress?.(done, total, name);
   }
   result.sort((a, b) => a.name.localeCompare(b.name));
   return result;

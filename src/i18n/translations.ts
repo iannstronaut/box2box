@@ -166,6 +166,14 @@ const en: Dict = {
   "export.exporting": "Exporting your dataset",
   "export.working": "Working…",
 
+  // ---- import overlay ----
+  "import.importing": "Importing project",
+  "import.folder": "Opening folder…",
+  "import.images": "Reading images",
+  "import.labels": "Reading labels",
+  "import.detect": "Detecting label format…",
+  "import.working": "Working…",
+
   // ---- help / shortcuts ----
   "help.shortcuts": "Shortcuts",
   "help.button": "Keyboard shortcuts",
@@ -421,6 +429,14 @@ const id: Dict = {
   // ---- export overlay ----
   "export.exporting": "Mengekspor dataset Anda",
   "export.working": "Memproses…",
+
+  // ---- import overlay ----
+  "import.importing": "Mengimpor proyek",
+  "import.folder": "Membuka folder…",
+  "import.images": "Membaca gambar",
+  "import.labels": "Membaca label",
+  "import.detect": "Mendeteksi format label…",
+  "import.working": "Memproses…",
 
   // ---- help / shortcuts ----
   "help.shortcuts": "Pintasan",
